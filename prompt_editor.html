@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt Editor</title>
+
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --panel: #11151a;
+        --muted: #a8b3cf;
+        --fg: #e6edf3;
+        --accent: #7aa2f7;
+        --border: #1f2630;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(17, 21, 26, 0.8);
+        position: sticky;
+        top: 0;
+        backdrop-filter: blur(6px);
+      }
+
+      header h1 {
+        font-size: 14px;
+        margin: 0;
+        letter-spacing: .02em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .spacer { flex: 1; }
+
+      button,
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--fg);
+        padding: 8px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      button:hover { border-color: #2b3442; }
+
+      .hint { color: var(--muted); font-size: 12px; }
+
+      .layout {
+        height: calc(100% - 46px);
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .dropzone {
+        padding: 10px 12px;
+        border-bottom: 1px dashed var(--border);
+        background: #0e1217;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        user-select: none;
+      }
+
+      .dropzone kbd {
+        background: #0c1116;
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 6px;
+        color: var(--muted);
+      }
+
+      .editor { height: 100%; }
+
+      textarea {
+        width: 100%;
+        height: 100%;
+        resize: none;
+        outline: none;
+        border: none;
+        padding: 14px;
+        background: #0a0e13;
+        color: var(--fg);
+        font: inherit;
+        line-height: 1.55;
+        caret-color: var(--accent);
+      }
+
+      .dropzone--active { outline: 2px dashed var(--accent); outline-offset: -6px; }
+
+      .toast {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        background: #0e1420;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: var(--fg);
+        opacity: 0;
+        transform: translateY(6px);
+        transition: .2s ease;
+      }
+
+      .toast--show { opacity: 1; transform: translateY(0); }
+
+      /* Focus polish */
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Prompt Editor</h1>
+      <div class="spacer"></div>
+      <button id="copyBtn" type="button" title="Copy entire buffer" aria-label="Copy entire buffer">Copy</button>
+      <button id="saveBtn" type="button" title="Save to disk (⌘/Ctrl+S)" aria-label="Save to disk">Save</button>
+    </header>
+
+    <main class="layout">
+      <div id="dropzone" class="dropzone" tabindex="0" aria-label="Drop files here">
+        <span class="hint">Drop or paste files (<kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd>) here to include as context</span>
+      </div>
+      <div class="editor">
+        <textarea id="buffer" spellcheck="false" placeholder="Type here… then drag & drop or paste files to append them as fenced blocks." aria-label="Prompt text buffer" autofocus></textarea>
+      </div>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module">
+      // ===== Utilities =====
+      const $ = (sel, root = document) => root.querySelector(sel);
+      const buffer = $('#buffer');
+      const dropzone = $('#dropzone');
+      const copyBtn = $('#copyBtn');
+      const saveBtn = $('#saveBtn');
+      const toast = $('#toast');
+
+      const SEPARATOR = "\n\n---\n\n";
+      let toastTimer = null;
+
+      const langByExt = new Map(Object.entries({
+        js: 'javascript', ts: 'typescript', jsx: 'jsx', tsx: 'tsx',
+        json: 'json', md: 'markdown', yml: 'yaml', yaml: 'yaml',
+        py: 'python', rb: 'ruby', php: 'php', rs: 'rust', go: 'go',
+        java: 'java', c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cs: 'csharp',
+        sql: 'sql', sh: 'bash', zsh: 'bash', fish: 'bash',
+        html: 'html', css: 'css', scss: 'scss', mjs: 'javascript', cjs: 'javascript'
+      }));
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add('toast--show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('toast--show'), 1600);
+      }
+
+      function shouldPrependSeparator(current) {
+        const trimmed = current.replace(/\s+$/, '');
+        if (!trimmed) return false;
+        return !/\n\s*---\s*$/.test(trimmed);
+      }
+
+      function normalizeNewlines(text) {
+        return text.replace(/\r\n?|\u2028|\u2029/g, '\n');
+      }
+
+      function languageHintFromName(name) {
+        const m = /\.([^.]+)$/.exec(name || '');
+        if (!m) return '';
+        const ext = m[1].toLowerCase();
+        return langByExt.get(ext) || '';
+      }
+
+      function fenced(text, lang = '') {
+        const body = normalizeNewlines(text).replace(/\n?$/, '\n');
+        return lang ? `\`\`\`${lang}\n${body}\`\`\`` : `\`\`\`\n${body}\`\`\``;
+      }
+
+      function blockForFile(name, text) {
+        const lang = languageHintFromName(name);
+        return `${name}:\n${fenced(text, lang)}`;
+      }
+
+      function appendBlocks(blocks) {
+        if (!blocks.length) return;
+        const content = buffer.value;
+        const pieces = [];
+        if (shouldPrependSeparator(content)) pieces.push(SEPARATOR);
+        pieces.push(blocks.join(SEPARATOR));
+        buffer.value = content + pieces.join('');
+        // Move caret to end
+        buffer.selectionStart = buffer.selectionEnd = buffer.value.length;
+      }
+
+      async function readTextFile(file) {
+        try { return await file.text(); } catch { return ''; }
+      }
+
+      function looksTextLike(file) {
+        if (!file || !file.type) return true; // many code files have empty type
+        return file.type.startsWith('text/') || /json|xml|javascript|typescript|python|shell|x-sh|x-c\+\+|x-csrc|x-go|x-rust|x-yaml|x-sql|x-markdown/i.test(file.type);
+      }
+
+      async function saveTextToFile(text, suggestedName = 'prompt.txt') {
+        // 1) File System Access API path
+        if ('showSaveFilePicker' in window) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName,
+              types: [{
+                description: 'Text / Markdown',
+                accept: { 'text/plain': ['.txt'], 'text/markdown': ['.md'] }
+              }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(text);
+            await writable.close();
+            return true;
+          } catch (err) {
+            if (err && err.name === 'AbortError') return false;
+            throw err;
+          }
+        }
+        // 2) Fallback download path
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        return true;
+      }
+
+      function suggestedFilename(now = new Date()) {
+        const pad = n => String(n).padStart(2, '0');
+        return `prompt-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
+      }
+
+      async function importFiles(fileList) {
+        const files = Array.from(fileList).filter(looksTextLike);
+        if (!files.length) { showToast('No text-like files to import.'); return; }
+        try {
+          const blocks = await Promise.all(files.map(async f => blockForFile(f.name, await readTextFile(f))));
+          appendBlocks(blocks);
+          showToast(`${blocks.length} file${blocks.length > 1 ? 's' : ''} added`);
+        } catch {
+          showToast('Failed to read some files.');
+        }
+      }
+
+      // ===== Events: drop & paste =====
+      dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dropzone--active'); });
+      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dropzone--active'));
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dropzone--active');
+        const dt = e.dataTransfer;
+        if (dt?.files?.length) importFiles(dt.files);
+      });
+
+      window.addEventListener('paste', (e) => {
+        const cd = e.clipboardData;
+        if (!cd) return;
+        const files = Array.from(cd.files || []);
+        if (files.length) {
+          e.preventDefault();
+          importFiles(files);
+        }
+        // Otherwise, let normal text paste into the textarea.
+      });
+
+      // ===== Copy / Save =====
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(buffer.value);
+          showToast('Copied entire buffer');
+        } catch {
+          buffer.select();
+          document.execCommand('copy');
+          showToast('Copied via fallback');
+        }
+      });
+
+      saveBtn.addEventListener('click', async () => {
+        const ok = await saveTextToFile(buffer.value, suggestedFilename());
+        showToast(ok ? 'Saved to disk' : 'Save failed');
+      });
+
+      // Keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        // Copy: Cmd/Ctrl + Shift + C
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyC') {
+          e.preventDefault();
+          copyBtn.click();
+        }
+        // Save: Cmd/Ctrl + S
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS') {
+          e.preventDefault();
+          saveTextToFile(buffer.value, suggestedFilename())
+            .then(ok => showToast(ok ? 'Saved to disk' : 'Save failed'))
+            .catch(() => showToast('Save failed'));
+        }
+      });
+    </script>
+  </body>
+</html>
