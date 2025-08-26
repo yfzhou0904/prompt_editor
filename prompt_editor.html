@@ -443,64 +443,41 @@
     }
 
     async function importFiles(fileList) {
-      const files = Array.from(fileList).filter(looksTextLike);
-      if (!files.length) { showToast('No text-like files to import.'); return; }
+      const newFiles = Array.from(fileList || []);
+      if (!newFiles.length) return;
 
-      const oversized = files.filter(f => f.size > MAX_FILE_BYTES);
-      const okFiles = files.filter(f => f.size <= MAX_FILE_BYTES);
+      const state = State.get();
 
-      if (!okFiles.length) {
-        showToast('All files too large (>5MB)');
-        return;
-      }
+      if (state.mode === 'clean') {
+        const existingNames = new Set(state.files.map(f => f.name));
+        const fresh = [];
+        const collisions = [];
 
-      try {
-        const entries = await Promise.all(okFiles.map(async f => ({
-          name: f.name,
-          text: await readTextFile(f)
-        })));
-
-        State.update(s => {
-          // Dedupe by (name, text length) pair
-          const existing = new Set(s.files.map(x => `${x.name}|${x.text.length}`));
-          const fresh = entries.filter(e => !existing.has(`${e.name}|${e.text.length}`));
-
-          if (!fresh.length) return s;
-
-          if (s.mode === 'clean') {
-            // Check for name collisions in clean mode
-            const existingNames = new Set(s.files.map(f => f.name));
-            const collisions = fresh.filter(f => existingNames.has(f.name));
-            const safeToAdd = fresh.filter(f => !existingNames.has(f.name));
-
-            if (collisions.length) {
-              // Show collision toast after state update
-              setTimeout(() => {
-                const names = collisions.map(f => f.name).join(', ');
-                showToast(`Skipped: ${names} already attached. Rename existing file(s) to add another.`);
-              }, 0);
-            }
-
-            return safeToAdd.length ? { ...s, files: [...s.files, ...safeToAdd] } : s;
+        for (const f of newFiles) {
+          if (existingNames.has(f.name)) {
+            collisions.push(f.name);
           } else {
-            // raw: append as blocks
-            const current = s.text;
-            const prefix = needsSep(current) ? SEPARATOR : '';
-            const add = fresh.map(e => blockForFile(e.name, e.text)).join(SEPARATOR);
-            return { ...s, text: current + prefix + add };
+            fresh.push({ name: f.name, text: await readTextFile(f) });
           }
-        });
+        }
 
-        const { mode, files } = State.get();
-        const addedCount = mode === 'clean' ? files.length - (s.files?.length || 0) : entries.length;
-        if (addedCount > 0) {
-          showToast(`${addedCount} file${addedCount > 1 ? 's' : ''} ${mode === 'clean' ? 'attached' : 'added'}`);
+        if (fresh.length) {
+          State.update(s => ({ ...s, files: [...s.files, ...fresh] }));
         }
-        if (oversized.length) {
-          showToast(`${oversized.length} file${oversized.length > 1 ? 's' : ''} skipped (>5MB)`);
+
+        if (collisions.length) {
+          showToast(`Skipped: ${collisions.join(', ')} already attached`);
         }
-      } catch {
-        showToast('Failed to read some files.');
+        if (fresh.length) {
+          showToast(`Added ${fresh.length} file${fresh.length > 1 ? 's' : ''}`);
+        }
+      } else {
+        // raw mode: always append as blocks, no name tracking
+        const blocks = await Promise.all(
+          newFiles.map(async f => blockForFile(f.name, await readTextFile(f)))
+        );
+        appendBlocks(blocks);
+        showToast(`Appended ${blocks.length} file${blocks.length > 1 ? 's' : ''}`);
       }
     }
 
