@@ -118,6 +118,20 @@
       text-overflow: ellipsis;
     }
 
+    .filechip .btn {
+      padding: 2px 6px;
+      font-size: 11px;
+      border-radius: 6px;
+      margin-left: 4px;
+      background: rgba(122, 162, 247, 0.1);
+      border-color: rgba(122, 162, 247, 0.3);
+    }
+
+    .filechip .btn:hover {
+      background: rgba(122, 162, 247, 0.2);
+      border-color: rgba(122, 162, 247, 0.5);
+    }
+
     .editor {
       height: 100%;
     }
@@ -314,6 +328,58 @@
       return `prompt-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
     }
 
+    function promptRename(index) {
+      const { files } = State.get();
+      if (index < 0 || index >= files.length) return;
+
+      const file = files[index];
+      const currentName = file.name;
+      const newName = prompt('Rename file:', currentName);
+
+      if (newName === null) return; // User cancelled
+
+      const sanitized = newName.trim().replace(/[\r\n\\/]/g, '');
+      if (!sanitized) {
+        showToast('Invalid name: cannot be empty');
+        return;
+      }
+
+      if (sanitized === currentName) return; // No change
+
+      // Check for collision with existing files
+      const existingNames = new Set(files.map((f, i) => i !== index ? f.name : null));
+      if (existingNames.has(sanitized)) {
+        showToast(`Name "${sanitized}" already exists`);
+        return;
+      }
+
+      // Auto-restore extension if user removed it
+      const oldExt = /\.([^.]+)$/.exec(currentName);
+      const newExt = /\.([^.]+)$/.exec(sanitized);
+      const finalName = (oldExt && !newExt) ? `${sanitized}${oldExt[0]}` : sanitized;
+
+      // Update the file name
+      State.update(s => ({
+        ...s,
+        files: s.files.map((f, i) => i === index ? { ...f, name: finalName } : f)
+      }));
+
+      showToast(`Renamed to "${finalName}"`);
+    }
+
+    function deleteFile(index) {
+      const { files } = State.get();
+      if (index < 0 || index >= files.length) return;
+
+      const fileName = files[index].name;
+      State.update(s => ({
+        ...s,
+        files: s.files.filter((_, i) => i !== index)
+      }));
+
+      showToast(`Removed "${fileName}"`);
+    }
+
     function renderFileBar() {
       const { mode, files } = State.get();
       fileBar.textContent = '';
@@ -335,7 +401,29 @@
         name.className = 'name';
         name.textContent = f.name;
 
-        chip.append(dot, name);
+        // rename button
+        const edit = document.createElement('button');
+        edit.className = 'btn';
+        edit.textContent = '✏️';
+        edit.title = 'Rename file';
+        edit.setAttribute('aria-label', `Rename ${f.name}`);
+        edit.addEventListener('click', (e) => {
+          e.stopPropagation();
+          promptRename(idx);
+        });
+
+        // delete button
+        const del = document.createElement('button');
+        del.className = 'btn';
+        del.textContent = '🗑️';
+        del.title = 'Remove file';
+        del.setAttribute('aria-label', `Remove ${f.name}`);
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteFile(idx);
+        });
+
+        chip.append(dot, name, edit, del);
         frag.appendChild(chip);
       });
       fileBar.appendChild(frag);
@@ -380,7 +468,20 @@
           if (!fresh.length) return s;
 
           if (s.mode === 'clean') {
-            return { ...s, files: [...s.files, ...fresh] };
+            // Check for name collisions in clean mode
+            const existingNames = new Set(s.files.map(f => f.name));
+            const collisions = fresh.filter(f => existingNames.has(f.name));
+            const safeToAdd = fresh.filter(f => !existingNames.has(f.name));
+
+            if (collisions.length) {
+              // Show collision toast after state update
+              setTimeout(() => {
+                const names = collisions.map(f => f.name).join(', ');
+                showToast(`Skipped: ${names} already attached. Rename existing file(s) to add another.`);
+              }, 0);
+            }
+
+            return safeToAdd.length ? { ...s, files: [...s.files, ...safeToAdd] } : s;
           } else {
             // raw: append as blocks
             const current = s.text;
@@ -390,9 +491,10 @@
           }
         });
 
-        const { mode } = State.get();
-        if (entries.length) {
-          showToast(`${entries.length} file${entries.length > 1 ? 's' : ''} ${mode === 'clean' ? 'attached' : 'added'}`);
+        const { mode, files } = State.get();
+        const addedCount = mode === 'clean' ? files.length - (s.files?.length || 0) : entries.length;
+        if (addedCount > 0) {
+          showToast(`${addedCount} file${addedCount > 1 ? 's' : ''} ${mode === 'clean' ? 'attached' : 'added'}`);
         }
         if (oversized.length) {
           showToast(`${oversized.length} file${oversized.length > 1 ? 's' : ''} skipped (>5MB)`);
