@@ -67,26 +67,42 @@
       .layout {
         height: calc(100% - 46px);
         display: grid;
-        grid-template-rows: auto 1fr;
+        grid-template-rows: 1fr;
       }
 
-      .dropzone {
-        padding: 10px 12px;
-        border-bottom: 1px dashed var(--border);
-        background: #0e1217;
+      .filebar {
         display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-        user-select: none;
+        gap: 6px;
+        max-width: 50vw;
+        overflow: auto;
+        padding: 2px 0;
       }
 
-      .dropzone kbd {
-        background: #0c1116;
+      .filechip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
         border: 1px solid var(--border);
-        padding: 2px 6px;
-        border-radius: 6px;
+        background: var(--panel);
         color: var(--muted);
+        border-radius: 8px;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .filechip .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--accent);
+        opacity: .8;
+      }
+
+      .filechip .name {
+        max-width: 22ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .editor { height: 100%; }
@@ -105,7 +121,6 @@
         caret-color: var(--accent);
       }
 
-      .dropzone--active { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
       .toast {
         position: fixed;
@@ -131,17 +146,16 @@
   <body>
     <header>
       <h1>Prompt Editor</h1>
+      <div id="fileBar" class="filebar" aria-label="Attached files (clean mode)"></div>
       <div class="spacer"></div>
+      <button id="modeBtn" type="button" title="Switch to Raw mode (one-way)">Raw mode</button>
       <button id="copyBtn" type="button" title="Copy entire buffer" aria-label="Copy entire buffer">Copy</button>
       <button id="saveBtn" type="button" title="Save to disk (⌘/Ctrl+S)" aria-label="Save to disk">Save</button>
     </header>
 
     <main class="layout">
-      <div id="dropzone" class="dropzone" tabindex="0" aria-label="Drop files here">
-        <span class="hint">Drop or paste files (<kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd>) here to include as context</span>
-      </div>
       <div class="editor">
-        <textarea id="buffer" spellcheck="false" placeholder="Type here… then drag & drop or paste files to append them as fenced blocks." aria-label="Prompt text buffer" autofocus></textarea>
+        <textarea id="buffer" spellcheck="false" placeholder="Type here… drag & drop or paste files to attach as context (clean mode) or append directly (raw mode)." aria-label="Prompt text buffer" autofocus></textarea>
       </div>
     </main>
 
@@ -151,10 +165,15 @@
       // ===== Utilities =====
       const $ = (sel, root = document) => root.querySelector(sel);
       const buffer = $('#buffer');
-      const dropzone = $('#dropzone');
+      const modeBtn = $('#modeBtn');
+      const fileBar = $('#fileBar');
       const copyBtn = $('#copyBtn');
       const saveBtn = $('#saveBtn');
       const toast = $('#toast');
+
+      let mode = 'clean'; // 'clean' | 'raw'
+      /** @type {{name: string, text: string}[]} */
+      let fileEntries = [];
 
       const SEPARATOR = "\n\n---\n\n";
       let toastTimer = null;
@@ -261,53 +280,116 @@
         return `prompt-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
       }
 
+      function renderFileBar() {
+        if (mode !== 'clean') { fileBar.innerHTML = ''; return; }
+        if (!fileEntries.length) { fileBar.innerHTML = ''; return; }
+        fileBar.innerHTML = fileEntries.map(f => (
+          `<span class="filechip" title="${f.name}">
+             <span class="dot" aria-hidden="true"></span>
+             <span class="name">${f.name}</span>
+           </span>`
+        )).join('');
+      }
+
+      function composeFullContext() {
+        // Files (in import order), then --- separator, then user's current buffer text
+        const blocks = fileEntries.map(f => blockForFile(f.name, f.text));
+        const userText = buffer.value.trimEnd();
+        const parts = [];
+
+        if (blocks.length) parts.push(blocks.join(SEPARATOR));
+        if (userText) {
+          // Ensure separator between files and user text if both exist
+          if (blocks.length) parts.push(SEPARATOR);
+          // User text is appended "as-is" (not fenced)
+          parts.push(userText);
+        }
+        // If neither files nor user text, return empty string
+        return parts.join('');
+      }
+
       async function importFiles(fileList) {
         const files = Array.from(fileList).filter(looksTextLike);
         if (!files.length) { showToast('No text-like files to import.'); return; }
+
         try {
-          const blocks = await Promise.all(files.map(async f => blockForFile(f.name, await readTextFile(f))));
-          appendBlocks(blocks);
-          showToast(`${blocks.length} file${blocks.length > 1 ? 's' : ''} added`);
+          const entries = await Promise.all(files.map(async f => ({ name: f.name, text: await readTextFile(f) })));
+          if (mode === 'clean') {
+            fileEntries.push(...entries);
+            renderFileBar();
+            showToast(`${entries.length} file${entries.length > 1 ? 's' : ''} attached`);
+          } else { // raw mode – flatten into buffer immediately
+            const blocks = entries.map(e => blockForFile(e.name, e.text));
+            appendBlocks(blocks); // existing function, keeps your separator rules
+            showToast(`${entries.length} file${entries.length > 1 ? 's' : ''} added`);
+          }
         } catch {
           showToast('Failed to read some files.');
         }
       }
 
       // ===== Events: drop & paste =====
-      dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dropzone--active'); });
-      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dropzone--active'));
-      dropzone.addEventListener('drop', (e) => {
+      buffer.addEventListener('dragover', (e) => {
+        if (e.dataTransfer) e.preventDefault();
+      });
+      buffer.addEventListener('drop', (e) => {
+        if (!e.dataTransfer) return;
         e.preventDefault();
-        dropzone.classList.remove('dropzone--active');
-        const dt = e.dataTransfer;
-        if (dt?.files?.length) importFiles(dt.files);
+        const { files } = e.dataTransfer;
+        if (files?.length) importFiles(files);
       });
 
-      window.addEventListener('paste', (e) => {
+      buffer.addEventListener('paste', (e) => {
         const cd = e.clipboardData;
         if (!cd) return;
         const files = Array.from(cd.files || []);
         if (files.length) {
           e.preventDefault();
           importFiles(files);
+          // Let normal text paste proceed if no files in clipboard
         }
-        // Otherwise, let normal text paste into the textarea.
+      });
+
+      // ===== Mode Switch =====
+      modeBtn.addEventListener('click', () => {
+        if (mode === 'raw') return;
+        // Flatten files into the buffer, clear the list, switch mode
+        const composed = composeFullContext();
+        buffer.value = composed;
+        fileEntries = [];
+        mode = 'raw';
+        renderFileBar();
+        modeBtn.textContent = 'Raw mode (locked)';
+        modeBtn.title = 'You are in raw mode; file icons are cleared';
+        modeBtn.disabled = true; // optional hard lock
+        showToast('Switched to raw mode');
       });
 
       // ===== Copy / Save =====
       copyBtn.addEventListener('click', async () => {
+        const text = (mode === 'clean') ? composeFullContext() : buffer.value;
         try {
-          await navigator.clipboard.writeText(buffer.value);
+          await navigator.clipboard.writeText(text);
           showToast('Copied entire buffer');
         } catch {
-          buffer.select();
-          document.execCommand('copy');
+          // Fallback path has to select the buffer, so put composed text temporarily if needed
+          if (mode === 'clean') {
+            const prev = buffer.value;
+            buffer.value = text;
+            buffer.select();
+            document.execCommand('copy');
+            buffer.value = prev;
+          } else {
+            buffer.select();
+            document.execCommand('copy');
+          }
           showToast('Copied via fallback');
         }
       });
 
       saveBtn.addEventListener('click', async () => {
-        const ok = await saveTextToFile(buffer.value, suggestedFilename());
+        const text = (mode === 'clean') ? composeFullContext() : buffer.value;
+        const ok = await saveTextToFile(text, suggestedFilename());
         showToast(ok ? 'Saved to disk' : 'Save failed');
       });
 
@@ -321,11 +403,15 @@
         // Save: Cmd/Ctrl + S
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS') {
           e.preventDefault();
-          saveTextToFile(buffer.value, suggestedFilename())
+          const text = (mode === 'clean') ? composeFullContext() : buffer.value;
+          saveTextToFile(text, suggestedFilename())
             .then(ok => showToast(ok ? 'Saved to disk' : 'Save failed'))
             .catch(() => showToast('Save failed'));
         }
       });
+
+      // Initialize
+      renderFileBar();
     </script>
   </body>
 </html>
