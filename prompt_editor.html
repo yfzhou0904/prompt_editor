@@ -1,417 +1,525 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Prompt Editor</title>
 
-    <style>
-      :root {
-        --bg: #0b0d10;
-        --panel: #11151a;
-        --muted: #a8b3cf;
-        --fg: #e6edf3;
-        --accent: #7aa2f7;
-        --border: #1f2630;
-      }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prompt Editor</title>
 
-      * { box-sizing: border-box; }
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #11151a;
+      --muted: #a8b3cf;
+      --fg: #e6edf3;
+      --accent: #7aa2f7;
+      --border: #1f2630;
+    }
 
-      html, body { height: 100%; }
+    * {
+      box-sizing: border-box;
+    }
 
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--fg);
-        font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      }
+    html,
+    body {
+      height: 100%;
+    }
 
-      header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--border);
-        background: rgba(17, 21, 26, 0.8);
-        position: sticky;
-        top: 0;
-        backdrop-filter: blur(6px);
-      }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
 
-      header h1 {
-        font-size: 14px;
-        margin: 0;
-        letter-spacing: .02em;
-        color: var(--muted);
-        font-weight: 600;
-      }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(17, 21, 26, 0.8);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(6px);
+    }
 
-      .spacer { flex: 1; }
+    header h1 {
+      font-size: 14px;
+      margin: 0;
+      letter-spacing: .02em;
+      color: var(--muted);
+      font-weight: 600;
+    }
 
-      button,
-      .btn {
-        appearance: none;
-        border: 1px solid var(--border);
-        background: var(--panel);
-        color: var(--fg);
-        padding: 8px 10px;
-        border-radius: 10px;
-        cursor: pointer;
-        font-weight: 600;
-      }
+    .spacer {
+      flex: 1;
+    }
 
-      button:hover { border-color: #2b3442; }
+    button,
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--fg);
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
 
-      .hint { color: var(--muted); font-size: 12px; }
+    button:hover {
+      border-color: #2b3442;
+    }
 
-      .layout {
-        height: calc(100% - 46px);
-        display: grid;
-        grid-template-rows: 1fr;
-      }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+    }
 
-      .filebar {
-        display: flex;
-        gap: 6px;
-        max-width: 50vw;
-        overflow: auto;
-        padding: 2px 0;
-      }
+    .layout {
+      height: calc(100% - 46px);
+      display: grid;
+      grid-template-rows: 1fr;
+    }
 
-      .filechip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 8px;
-        border: 1px solid var(--border);
-        background: var(--panel);
-        color: var(--muted);
-        border-radius: 8px;
-        font-size: 12px;
-        white-space: nowrap;
-      }
+    .filebar {
+      display: flex;
+      gap: 6px;
+      max-width: 50vw;
+      overflow: auto;
+      padding: 2px 0;
+    }
 
-      .filechip .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: var(--accent);
-        opacity: .8;
-      }
+    .filechip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      border-radius: 8px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
 
-      .filechip .name {
-        max-width: 22ch;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+    .filechip .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      opacity: .8;
+    }
 
-      .editor { height: 100%; }
+    .filechip .name {
+      max-width: 22ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-      textarea {
-        width: 100%;
-        height: 100%;
-        resize: none;
-        outline: none;
-        border: none;
-        padding: 14px;
-        background: #0a0e13;
-        color: var(--fg);
-        font: inherit;
-        line-height: 1.55;
-        caret-color: var(--accent);
-      }
+    .editor {
+      height: 100%;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      outline: none;
+      border: none;
+      padding: 14px;
+      background: #0a0e13;
+      color: var(--fg);
+      font: inherit;
+      line-height: 1.55;
+      caret-color: var(--accent);
+    }
 
 
-      .toast {
-        position: fixed;
-        right: 12px;
-        bottom: 12px;
-        background: #0e1420;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 8px 10px;
-        color: var(--fg);
-        opacity: 0;
-        transform: translateY(6px);
-        transition: .2s ease;
-      }
+    .toast {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      background: #0e1420;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      color: var(--fg);
+      opacity: 0;
+      transform: translateY(6px);
+      transition: .2s ease;
+    }
 
-      .toast--show { opacity: 1; transform: translateY(0); }
+    .toast--show {
+      opacity: 1;
+      transform: translateY(0);
+    }
 
-      /* Focus polish */
-      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    </style>
-  </head>
+    /* Focus polish */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
 
-  <body>
-    <header>
-      <h1>Prompt Editor</h1>
-      <div id="fileBar" class="filebar" aria-label="Attached files (clean mode)"></div>
-      <div class="spacer"></div>
-      <button id="modeBtn" type="button" title="Switch to Raw mode (one-way)">Raw mode</button>
-      <button id="copyBtn" type="button" title="Copy entire buffer" aria-label="Copy entire buffer">Copy</button>
-      <button id="saveBtn" type="button" title="Save to disk (⌘/Ctrl+S)" aria-label="Save to disk">Save</button>
-    </header>
+<body>
+  <header>
+    <h1>Prompt Editor</h1>
+    <div id="fileBar" class="filebar" aria-label="Attached files (clean mode)"></div>
+    <div class="spacer"></div>
+    <button id="modeBtn" type="button" title="Switch to Raw mode (one-way)">Raw mode</button>
+    <button id="copyBtn" type="button" title="Copy entire buffer" aria-label="Copy entire buffer">Copy</button>
+    <button id="saveBtn" type="button" title="Save to disk (⌘/Ctrl+S)" aria-label="Save to disk">Save</button>
+  </header>
 
-    <main class="layout">
-      <div class="editor">
-        <textarea id="buffer" spellcheck="false" placeholder="Type here… drag & drop or paste files to attach as context (clean mode) or append directly (raw mode)." aria-label="Prompt text buffer" autofocus></textarea>
-      </div>
-    </main>
+  <main class="layout">
+    <div class="editor">
+      <textarea id="buffer" spellcheck="false"
+        placeholder="Type here… drag & drop or paste files to attach as context (clean mode) or append directly (raw mode)."
+        aria-label="Prompt text buffer" autofocus></textarea>
+    </div>
+  </main>
 
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script type="module">
-      // ===== Utilities =====
-      const $ = (sel, root = document) => root.querySelector(sel);
-      const buffer = $('#buffer');
-      const modeBtn = $('#modeBtn');
-      const fileBar = $('#fileBar');
-      const copyBtn = $('#copyBtn');
-      const saveBtn = $('#saveBtn');
-      const toast = $('#toast');
+  <script type="module">
+    // ===== Utilities =====
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const buffer = $('#buffer');
+    const modeBtn = $('#modeBtn');
+    const fileBar = $('#fileBar');
+    const copyBtn = $('#copyBtn');
+    const saveBtn = $('#saveBtn');
+    const toast = $('#toast');
 
-      let mode = 'clean'; // 'clean' | 'raw'
-      /** @type {{name: string, text: string}[]} */
-      let fileEntries = [];
+    // ===== Centralized State Management =====
+    /** @typedef {{ name: string, text: string }} FileEntry */
+    /** @typedef {"clean" | "raw"} Mode */
+    const State = (() => {
+      /** @type {{ mode: Mode, files: FileEntry[], text: string }} */
+      let s = { mode: 'clean', files: [], text: '' };
+      /** @type {Set<() => void>} */
+      const subs = new Set();
+      const get = () => s;
+      const set = (patch) => { s = { ...s, ...patch }; subs.forEach(fn => fn()); };
+      const update = (fn) => { s = fn(s); subs.forEach(sub => sub()); };
+      const subscribe = (fn) => (subs.add(fn), () => subs.delete(fn));
+      return { get, set, update, subscribe };
+    })();
 
-      const SEPARATOR = "\n\n---\n\n";
-      let toastTimer = null;
+    const SEPARATOR = "\n\n---\n\n";
+    const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
+    let toastTimer = null;
 
-      const langByExt = new Map(Object.entries({
-        js: 'javascript', ts: 'typescript', jsx: 'jsx', tsx: 'tsx',
-        json: 'json', md: 'markdown', yml: 'yaml', yaml: 'yaml',
-        py: 'python', rb: 'ruby', php: 'php', rs: 'rust', go: 'go',
-        java: 'java', c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cs: 'csharp',
-        sql: 'sql', sh: 'bash', zsh: 'bash', fish: 'bash',
-        html: 'html', css: 'css', scss: 'scss', mjs: 'javascript', cjs: 'javascript'
-      }));
+    const langByExt = new Map(Object.entries({
+      js: 'javascript', ts: 'typescript', jsx: 'jsx', tsx: 'tsx',
+      json: 'json', md: 'markdown', yml: 'yaml', yaml: 'yaml',
+      py: 'python', rb: 'ruby', php: 'php', rs: 'rust', go: 'go',
+      java: 'java', c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cs: 'csharp',
+      sql: 'sql', sh: 'bash', zsh: 'bash', fish: 'bash',
+      html: 'html', css: 'css', scss: 'scss', mjs: 'javascript', cjs: 'javascript'
+    }));
 
-      function showToast(msg) {
-        toast.textContent = msg;
-        toast.classList.add('toast--show');
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.remove('toast--show'), 1600);
-      }
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('toast--show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('toast--show'), 1600);
+    }
 
-      function shouldPrependSeparator(current) {
-        const trimmed = current.replace(/\s+$/, '');
-        if (!trimmed) return false;
-        return !/\n\s*---\s*$/.test(trimmed);
-      }
+    function needsSep(prev) {
+      const trimmed = prev.replace(/\s+$/, '');
+      if (!trimmed) return false;
+      return !/\n\s*---\s*$/.test(trimmed);
+    }
 
-      function normalizeNewlines(text) {
-        return text.replace(/\r\n?|\u2028|\u2029/g, '\n');
-      }
+    function normalizeNewlines(text) {
+      return text.replace(/\r\n?|\u2028|\u2029/g, '\n');
+    }
 
-      function languageHintFromName(name) {
-        const m = /\.([^.]+)$/.exec(name || '');
-        if (!m) return '';
-        const ext = m[1].toLowerCase();
-        return langByExt.get(ext) || '';
-      }
+    function languageHintFromName(name) {
+      const m = /\.([^.]+)$/.exec(name || '');
+      if (!m) return '';
+      const ext = m[1].toLowerCase();
+      return langByExt.get(ext) || '';
+    }
 
-      function fenced(text, lang = '') {
-        const body = normalizeNewlines(text).replace(/\n?$/, '\n');
-        return lang ? `\`\`\`${lang}\n${body}\`\`\`` : `\`\`\`\n${body}\`\`\``;
-      }
+    function fenced(text, lang = '') {
+      const body = normalizeNewlines(text).replace(/\n?$/, '\n');
+      return lang ? `\`\`\`${lang}\n${body}\`\`\`` : `\`\`\`\n${body}\`\`\``;
+    }
 
-      function blockForFile(name, text) {
-        const lang = languageHintFromName(name);
-        return `${name}:\n${fenced(text, lang)}`;
-      }
+    function blockForFile(name, text) {
+      const lang = languageHintFromName(name);
+      return `${name}:\n${fenced(text, lang)}`;
+    }
 
-      function appendBlocks(blocks) {
-        if (!blocks.length) return;
-        const content = buffer.value;
-        const pieces = [];
-        if (shouldPrependSeparator(content)) pieces.push(SEPARATOR);
-        pieces.push(blocks.join(SEPARATOR));
-        buffer.value = content + pieces.join('');
-        // Move caret to end
-        buffer.selectionStart = buffer.selectionEnd = buffer.value.length;
-      }
+    function appendBlocks(blocks) {
+      if (!blocks.length) return;
+      State.update(s => {
+        const current = s.text;
+        const prefix = needsSep(current) ? SEPARATOR : '';
+        const add = blocks.join(SEPARATOR);
+        return { ...s, text: current + prefix + add };
+      });
+    }
 
-      async function readTextFile(file) {
-        try { return await file.text(); } catch { return ''; }
-      }
+    async function readTextFile(file) {
+      try { return await file.text(); } catch { return ''; }
+    }
 
-      function looksTextLike(file) {
-        if (!file || !file.type) return true; // many code files have empty type
-        return file.type.startsWith('text/') || /json|xml|javascript|typescript|python|shell|x-sh|x-c\+\+|x-csrc|x-go|x-rust|x-yaml|x-sql|x-markdown/i.test(file.type);
-      }
+    function looksTextLike(file) {
+      if (!file || !file.type) return true; // many code files have empty type
+      return file.type.startsWith('text/') || /json|xml|javascript|typescript|python|shell|x-sh|x-c\+\+|x-csrc|x-go|x-rust|x-yaml|x-sql|x-markdown/i.test(file.type);
+    }
 
-      async function saveTextToFile(text, suggestedName = 'prompt.txt') {
-        // 1) File System Access API path
-        if ('showSaveFilePicker' in window) {
-          try {
-            const handle = await window.showSaveFilePicker({
-              suggestedName,
-              types: [{
-                description: 'Text / Markdown',
-                accept: { 'text/plain': ['.txt'], 'text/markdown': ['.md'] }
-              }]
-            });
-            const writable = await handle.createWritable();
-            await writable.write(text);
-            await writable.close();
-            return true;
-          } catch (err) {
-            if (err && err.name === 'AbortError') return false;
-            throw err;
-          }
-        }
-        // 2) Fallback download path
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-        return true;
-      }
-
-      function suggestedFilename(now = new Date()) {
-        const pad = n => String(n).padStart(2, '0');
-        return `prompt-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
-      }
-
-      function renderFileBar() {
-        if (mode !== 'clean') { fileBar.innerHTML = ''; return; }
-        if (!fileEntries.length) { fileBar.innerHTML = ''; return; }
-        fileBar.innerHTML = fileEntries.map(f => (
-          `<span class="filechip" title="${f.name}">
-             <span class="dot" aria-hidden="true"></span>
-             <span class="name">${f.name}</span>
-           </span>`
-        )).join('');
-      }
-
-      function composeFullContext() {
-        // Files (in import order), then --- separator, then user's current buffer text
-        const blocks = fileEntries.map(f => blockForFile(f.name, f.text));
-        const userText = buffer.value.trimEnd();
-        const parts = [];
-
-        if (blocks.length) parts.push(blocks.join(SEPARATOR));
-        if (userText) {
-          // Ensure separator between files and user text if both exist
-          if (blocks.length) parts.push(SEPARATOR);
-          // User text is appended "as-is" (not fenced)
-          parts.push(userText);
-        }
-        // If neither files nor user text, return empty string
-        return parts.join('');
-      }
-
-      async function importFiles(fileList) {
-        const files = Array.from(fileList).filter(looksTextLike);
-        if (!files.length) { showToast('No text-like files to import.'); return; }
-
+    async function saveTextToFile(text, suggestedName = 'prompt.txt') {
+      // 1) File System Access API path
+      if ('showSaveFilePicker' in window) {
         try {
-          const entries = await Promise.all(files.map(async f => ({ name: f.name, text: await readTextFile(f) })));
-          if (mode === 'clean') {
-            fileEntries.push(...entries);
-            renderFileBar();
-            showToast(`${entries.length} file${entries.length > 1 ? 's' : ''} attached`);
-          } else { // raw mode – flatten into buffer immediately
-            const blocks = entries.map(e => blockForFile(e.name, e.text));
-            appendBlocks(blocks); // existing function, keeps your separator rules
-            showToast(`${entries.length} file${entries.length > 1 ? 's' : ''} added`);
-          }
-        } catch {
-          showToast('Failed to read some files.');
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{
+              description: 'Text / Markdown',
+              accept: { 'text/plain': ['.txt'], 'text/markdown': ['.md'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(text);
+          await writable.close();
+          return true;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return false;
+          throw err;
         }
       }
+      // 2) Fallback download path
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = suggestedName;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      return true;
+    }
 
-      // ===== Events: drop & paste =====
-      buffer.addEventListener('dragover', (e) => {
-        if (e.dataTransfer) e.preventDefault();
-      });
-      buffer.addEventListener('drop', (e) => {
-        if (!e.dataTransfer) return;
-        e.preventDefault();
-        const { files } = e.dataTransfer;
-        if (files?.length) importFiles(files);
-      });
+    function suggestedFilename(now = new Date()) {
+      const pad = n => String(n).padStart(2, '0');
+      return `prompt-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
+    }
 
-      buffer.addEventListener('paste', (e) => {
-        const cd = e.clipboardData;
-        if (!cd) return;
-        const files = Array.from(cd.files || []);
-        if (files.length) {
-          e.preventDefault();
-          importFiles(files);
-          // Let normal text paste proceed if no files in clipboard
-        }
-      });
+    function renderFileBar() {
+      const { mode, files } = State.get();
+      fileBar.textContent = '';
+      if (mode !== 'clean' || !files.length) return;
 
-      // ===== Mode Switch =====
-      modeBtn.addEventListener('click', () => {
-        if (mode === 'raw') return;
-        // Flatten files into the buffer, clear the list, switch mode
-        const composed = composeFullContext();
-        buffer.value = composed;
-        fileEntries = [];
-        mode = 'raw';
-        renderFileBar();
-        modeBtn.textContent = 'Raw mode (locked)';
-        modeBtn.title = 'You are in raw mode; file icons are cleared';
-        modeBtn.disabled = true; // optional hard lock
-        showToast('Switched to raw mode');
-      });
+      const frag = document.createDocumentFragment();
+      files.forEach((f, idx) => {
+        const chip = document.createElement('span');
+        chip.className = 'filechip';
+        chip.title = f.name;
 
-      // ===== Copy / Save =====
-      copyBtn.addEventListener('click', async () => {
-        const text = (mode === 'clean') ? composeFullContext() : buffer.value;
-        try {
-          await navigator.clipboard.writeText(text);
-          showToast('Copied entire buffer');
-        } catch {
-          // Fallback path has to select the buffer, so put composed text temporarily if needed
-          if (mode === 'clean') {
-            const prev = buffer.value;
-            buffer.value = text;
-            buffer.select();
-            document.execCommand('copy');
-            buffer.value = prev;
+        // dot
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.setAttribute('aria-hidden', 'true');
+
+        // name
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = f.name;
+
+        chip.append(dot, name);
+        frag.appendChild(chip);
+      });
+      fileBar.appendChild(frag);
+    }
+
+    /** Pure: the only place that defines final output */
+    function composeFullContext(state) {
+      const blocks = state.files.map(f => blockForFile(f.name, f.text));
+      const pieces = [];
+      if (blocks.length) pieces.push(blocks.join(SEPARATOR));
+      const userText = state.text.trimEnd();
+      if (userText) {
+        if (blocks.length) pieces.push(SEPARATOR);
+        pieces.push(userText);
+      }
+      return pieces.join('');
+    }
+
+    async function importFiles(fileList) {
+      const files = Array.from(fileList).filter(looksTextLike);
+      if (!files.length) { showToast('No text-like files to import.'); return; }
+
+      const oversized = files.filter(f => f.size > MAX_FILE_BYTES);
+      const okFiles = files.filter(f => f.size <= MAX_FILE_BYTES);
+
+      if (!okFiles.length) {
+        showToast('All files too large (>5MB)');
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(okFiles.map(async f => ({
+          name: f.name,
+          text: await readTextFile(f)
+        })));
+
+        State.update(s => {
+          // Dedupe by (name, text length) pair
+          const existing = new Set(s.files.map(x => `${x.name}|${x.text.length}`));
+          const fresh = entries.filter(e => !existing.has(`${e.name}|${e.text.length}`));
+
+          if (!fresh.length) return s;
+
+          if (s.mode === 'clean') {
+            return { ...s, files: [...s.files, ...fresh] };
           } else {
-            buffer.select();
-            document.execCommand('copy');
+            // raw: append as blocks
+            const current = s.text;
+            const prefix = needsSep(current) ? SEPARATOR : '';
+            const add = fresh.map(e => blockForFile(e.name, e.text)).join(SEPARATOR);
+            return { ...s, text: current + prefix + add };
           }
+        });
+
+        const { mode } = State.get();
+        if (entries.length) {
+          showToast(`${entries.length} file${entries.length > 1 ? 's' : ''} ${mode === 'clean' ? 'attached' : 'added'}`);
+        }
+        if (oversized.length) {
+          showToast(`${oversized.length} file${oversized.length > 1 ? 's' : ''} skipped (>5MB)`);
+        }
+      } catch {
+        showToast('Failed to read some files.');
+      }
+    }
+
+    // ===== Events: drop & paste =====
+    buffer.addEventListener('dragover', (e) => {
+      if (e.dataTransfer) e.preventDefault();
+    });
+    buffer.addEventListener('drop', (e) => {
+      if (!e.dataTransfer) return;
+      e.preventDefault();
+      const { files } = e.dataTransfer;
+      if (files?.length) importFiles(files);
+    });
+
+    buffer.addEventListener('paste', (e) => {
+      const cd = e.clipboardData;
+      if (!cd) return;
+      const files = Array.from(cd.files || []);
+      if (files.length) {
+        e.preventDefault();
+        importFiles(files);
+        // Let normal text paste proceed if no files in clipboard
+      }
+    });
+
+    // ===== Actions =====
+    function switchToRaw() {
+      State.update(s => ({
+        ...s,
+        mode: 'raw',
+        files: [],
+        text: composeFullContext(s)
+      }));
+      modeBtn.textContent = 'Raw mode (locked)';
+      modeBtn.title = 'You are in raw mode; file icons are cleared';
+      modeBtn.disabled = true;
+      showToast('Switched to raw mode');
+    }
+
+    function copyAll() {
+      const state = State.get();
+      const text = (state.mode === 'clean') ? composeFullContext(state) : state.text;
+      return navigator.clipboard.writeText(text)
+        .then(() => showToast('Copied entire buffer'))
+        .catch(() => {
+          const prev = buffer.value;
+          buffer.value = text;
+          buffer.select();
+          document.execCommand('copy');
+          buffer.value = prev;
           showToast('Copied via fallback');
-        }
-      });
+        });
+    }
 
-      saveBtn.addEventListener('click', async () => {
-        const text = (mode === 'clean') ? composeFullContext() : buffer.value;
-        const ok = await saveTextToFile(text, suggestedFilename());
-        showToast(ok ? 'Saved to disk' : 'Save failed');
-      });
+    async function saveAll() {
+      const state = State.get();
+      const text = (state.mode === 'clean') ? composeFullContext(state) : state.text;
+      const ok = await saveTextToFile(text, suggestedFilename());
+      showToast(ok ? 'Saved to disk' : 'Save failed');
+    }
 
-      // Keyboard shortcuts
-      window.addEventListener('keydown', (e) => {
-        // Copy: Cmd/Ctrl + Shift + C
-        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyC') {
-          e.preventDefault();
-          copyBtn.click();
-        }
-        // Save: Cmd/Ctrl + S
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS') {
-          e.preventDefault();
-          const text = (mode === 'clean') ? composeFullContext() : buffer.value;
-          saveTextToFile(text, suggestedFilename())
-            .then(ok => showToast(ok ? 'Saved to disk' : 'Save failed'))
-            .catch(() => showToast('Save failed'));
-        }
-      });
+    // ===== Mode Switch =====
+    modeBtn.addEventListener('click', () => {
+      if (State.get().mode === 'raw') return;
+      switchToRaw();
+    });
 
-      // Initialize
+    // ===== Copy / Save =====
+    copyBtn.addEventListener('click', copyAll);
+    saveBtn.addEventListener('click', saveAll);
+
+    // ===== Keyboard shortcuts =====
+    const matchShortcut = (e, spec) => {
+      const needMeta = spec.includes('Meta+');
+      const needCtrl = spec.includes('Ctrl+');
+      const needShift = spec.includes('Shift+');
+      const key = spec.split('+').pop();
+      return (!!e.metaKey === needMeta) &&
+        (!!e.ctrlKey === needCtrl) &&
+        (!!e.shiftKey === needShift) &&
+        e.code === 'Key' + key.toUpperCase();
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (matchShortcut(e, 'Meta+Shift+C') || matchShortcut(e, 'Ctrl+Shift+C')) {
+        e.preventDefault();
+        copyAll();
+      }
+      if ((matchShortcut(e, 'Meta+S') || matchShortcut(e, 'Ctrl+S')) && !e.altKey) {
+        e.preventDefault();
+        saveAll();
+      }
+    });
+
+    // ===== Render Loop =====
+    // Wire buffer to state
+    buffer.addEventListener('input', () => {
+      State.set({ text: buffer.value });
+    });
+
+    // Render loop - sync state to DOM
+    State.subscribe(() => {
+      const s = State.get();
+      // Sync textarea with state, preserving cursor position
+      if (buffer.value !== s.text) {
+        const pos = buffer.selectionStart;
+        buffer.value = s.text;
+        buffer.selectionStart = buffer.selectionEnd = Math.min(pos, buffer.value.length);
+      }
       renderFileBar();
-    </script>
-  </body>
+    });
+
+    // Initialize - restore from localStorage or defaults
+    (function init() {
+      try {
+        State.set({ mode: 'clean', files: [], text: '' });
+      } catch {
+        State.set({ mode: 'clean', files: [], text: '' });
+      }
+    })();
+  </script>
+</body>
+
 </html>
